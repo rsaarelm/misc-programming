@@ -3,13 +3,14 @@ Version: 0.1
 
 Synopsis: Pedagogical demonstration of probability monads
 Author: Risto Saarelma
-License: MIT
+-- MIT License, close enough hopefully...
+License: BSD3
 License-File: LICENSE
 
 Cabal-Version: >= 1.2
 
-library
-  Exposed-Modules: Prob
+Executable prob
+  Main-Is: Prob.lhs
   Build-Depends: base >= 2.0
   Extensions: GeneralizedNewtypeDeriving
   Ghc-Options: -Wall
