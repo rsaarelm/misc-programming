@@ -1,0 +1,15 @@
+Name: haskell-prob
+Version: 0.1
+
+Synopsis: Pedagogical demonstration of probability monads
+Author: Risto Saarelma
+License: MIT
+License-File: LICENSE
+
+Cabal-Version: >= 1.2
+
+library
+  Exposed-Modules: Prob
+  Build-Depends: base >= 2.0
+  Extensions: GeneralizedNewtypeDeriving
+  Ghc-Options: -Wall
