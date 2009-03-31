@@ -1,6 +1,11 @@
-prob.html: Prob.lhs header.html
-	pandoc -o prob.html -f mkd Prob.lhs -s
+all: build/prob.html
+
+build:
+	mkdir build
+
+build/prob.html: Prob.lhs header.html build
+	pandoc -o $@ -f markdown+lhs Prob.lhs -s -C header.html
 
 clean:
-	rm -f prob.html
+	rm -rf build
 	runhaskell Setup.hs clean

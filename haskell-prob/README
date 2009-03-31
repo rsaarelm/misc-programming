@@ -1,0 +1,2 @@
+The Literate Haskell source is intended to be compiled to HTML slides using
+Pandoc >1.2 configured with `--flags=highlighting`.
