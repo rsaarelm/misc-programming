@@ -11,6 +11,6 @@ Cabal-Version: >= 1.2
 
 Executable prob
   Main-Is: Prob.lhs
-  Build-Depends: base >= 2.0
-  Extensions: GeneralizedNewtypeDeriving
+  Build-Depends: base >= 2.0, haskell98, mtl
+  Extensions: GeneralizedNewtypeDeriving TypeSynonymInstances
   Ghc-Options: -Wall
