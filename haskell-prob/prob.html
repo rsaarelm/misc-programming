@@ -1,0 +1,1288 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+><head
+  ><title
+    ></title
+    ><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"
+     /><meta name="generator" content="pandoc"
+     /><style type="text/css"
+    >
+table.sourceCode, tr.sourceCode, td.lineNumbers, td.sourceCode, table.sourceCode pre 
+   { margin: 0; padding: 0; border: 0; vertical-align: baseline; border: none; }
+td.lineNumbers { border-right: 1px solid #AAAAAA; text-align: right; color: #AAAAAA; padding-right: 5px; padding-left: 5px; }
+td.sourceCode { padding-left: 5px; }
+pre.sourceCode { }
+pre.sourceCode span.Normal { }
+pre.sourceCode span.Keyword { color: #007020; font-weight: bold; } 
+pre.sourceCode span.DataType { color: #902000; }
+pre.sourceCode span.DecVal { color: #40a070; }
+pre.sourceCode span.BaseN { color: #40a070; }
+pre.sourceCode span.Float { color: #40a070; }
+pre.sourceCode span.Char { color: #4070a0; }
+pre.sourceCode span.String { color: #4070a0; }
+pre.sourceCode span.Comment { color: #60a0b0; font-style: italic; }
+pre.sourceCode span.Others { color: #007020; }
+pre.sourceCode span.Alert { color: red; font-weight: bold; }
+pre.sourceCode span.Function { color: #06287e; }
+pre.sourceCode span.RegionMarker { }
+pre.sourceCode span.Error { color: red; font-weight: bold; }
+</style
+    >  <title>Probabilistic Haskell</title>
+  <meta name="copyright"
+   content="Copyright &#169; 2009 Risto Saarelma" />
+  <link rel="stylesheet" type="text/css" media="screen, projection" href="slidy/show.css" />
+  <script src="slidy/slidy.js" type="text/javascript"></script>
+  <style type="text/css">
+    <!-- your custom style rules -->
+  </style>
+  <link rel="stylesheet" type="text/css" media="print" href="slidy/print.css" />
+</head
+  ><body
+  ><div class="slide">
+<h1 id="probabilistic-haskell"
+    >Probabilistic Haskell</h1
+    ><ul
+    ><li
+      >Discrete distributions, Bayes' rule, Monte Carlo sampling...</li
+      ><li
+      >Use monads for bookkeeping of the computation</li
+      ><li
+      >Build up things from a small toolkit</li
+      ></ul
+    ><p
+    >Content is based on Eric Kidd's <a href="http://www.randomhacks.net/articles/2007/02/21/refactoring-probability-distributions"
+      >Refactoring probability distributions</a
+      > series and <a href="http://www.randomhacks.net/darcs/probability-monads/probability-monads.pdf"
+      >Build your own probability monads</a
+      > paper.</p
+    ><p
+    >A presentation for the Haskell workshop by the student group <a href="http://wiki.helsinki.fi/display/lambda/Etusivu"
+      >Lambda</a
+      >, University of Helsinki, 2009-04-02</p
+    ></div>
+
+<div class="slide">
+<h1 id="raw-probabilities"
+    >Raw probabilities</h1
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Keyword"
+	>import</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="Keyword Class"
+	>Monad</span
+	><br
+	 /><span class="Keyword"
+	>import</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="Normal ModuleName"
+	>Control.Monad.Trans</span
+	><br
+	 /><span class="Keyword"
+	>import</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="DataType TypeConstructor"
+	>Maybe</span
+	><br
+	 /></code
+      ></pre
+    ><p
+    >We start with some library stuff we'll end up needing, and a simple numerical type for basic probabilities.</p
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Normal NormalText"
+	>newtype Prob = Prob </span
+	><span class="DataType TypeConstructor"
+	>Rational</span
+	><br
+	 /><span class="Normal NormalText"
+	>    </span
+	><span class="Keyword"
+	>deriving</span
+	><span class="Normal NormalText"
+	> (</span
+	><span class="Keyword Class"
+	>Eq</span
+	><span class="Normal NormalText"
+	>, </span
+	><span class="Keyword Class"
+	>Ord</span
+	><span class="Normal NormalText"
+	>, </span
+	><span class="Keyword Class"
+	>Num</span
+	><span class="Normal NormalText"
+	>, </span
+	><span class="Keyword Class"
+	>Fractional</span
+	><span class="Normal NormalText"
+	>)</span
+	><br
+	 /></code
+      ></pre
+    ><p
+    >These should always be within [0, 1], which isn't enforced here, so the user shouldn't be allowed to feed raw <code
+      >Prob</code
+      > values into the probabilistic machinery.</p
+    ></div>
+
+<div class="slide">
+<pre class="sourceCode haskell"
+    ><code
+      ><span class="Keyword"
+	>instance</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="Keyword Class"
+	>Show</span
+	><span class="Normal NormalText"
+	> Prob </span
+	><span class="Keyword"
+	>where</span
+	><br
+	 /><span class="Normal NormalText"
+	>  </span
+	><span class="Function"
+	>show</span
+	><span class="Normal NormalText"
+	> (Prob p) = </span
+	><span class="Function"
+	>show</span
+	><span class="Normal NormalText"
+	> intPart ++ </span
+	><span class="String"
+	>&quot;.&quot;</span
+	><span class="Normal NormalText"
+	> ++ </span
+	><span class="Function"
+	>show</span
+	><span class="Normal NormalText"
+	> fracPart ++ </span
+	><span class="String"
+	>&quot; %&quot;</span
+	><br
+	 /><span class="Normal NormalText"
+	>      </span
+	><span class="Keyword"
+	>where</span
+	><span class="Normal NormalText"
+	> digits = </span
+	><span class="Function"
+	>round</span
+	><span class="Normal NormalText"
+	> (</span
+	><span class="DecVal Decimal"
+	>1000</span
+	><span class="Normal NormalText"
+	> * p)</span
+	><br
+	 /><span class="Normal NormalText"
+	>            intPart = digits </span
+	><span class="Others InfixOperator"
+	>`div`</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="DecVal Decimal"
+	>10</span
+	><br
+	 /><span class="Normal NormalText"
+	>            fracPart = digits </span
+	><span class="Others InfixOperator"
+	>`mod`</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="DecVal Decimal"
+	>10</span
+	><br
+	 /></code
+      ></pre
+    ><p
+    >A nice human-readable rounded percentage show function.</p
+    ></div>
+
+<div class="slide">
+<h1 id="Perhaps-values-with-a-probability"
+    ><code
+      >Perhaps</code
+      >: Values with a probability</h1
+    ><p
+    >Next, a type that's like <code
+      >Maybe</code
+      >, but with probabilities instead of binary values.</p
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Keyword"
+	>data</span
+	><span class="Normal NormalText"
+	> Perhaps a = Perhaps a Prob</span
+	><br
+	 /><span class="Normal NormalText"
+	>    </span
+	><span class="Keyword"
+	>deriving</span
+	><span class="Normal NormalText"
+	> (</span
+	><span class="Keyword Class"
+	>Show</span
+	><span class="Normal NormalText"
+	>)</span
+	><br
+	 /></code
+      ></pre
+    ><p
+    >When <code
+      >Prob</code
+      > is 0, this can be thought of as <code
+      >Nothing</code
+      >, and the carried value should be ignored. A function to help with this:</p
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Function FunctionDefinition"
+	>neverHappens ::</span
+	><span class="Normal NormalText"
+	> Perhaps a -&gt; </span
+	><span class="DataType TypeConstructor"
+	>Bool</span
+	><br
+	 /><span class="Normal NormalText"
+	>neverHappens (Perhaps _ </span
+	><span class="DecVal Decimal"
+	>0</span
+	><span class="Normal NormalText"
+	>) = </span
+	><span class="Keyword DataConstructor"
+	>True</span
+	><br
+	 /><span class="Normal NormalText"
+	>neverHappens _             = </span
+	><span class="Keyword DataConstructor"
+	>False</span
+	><br
+	 /></code
+      ></pre
+    ></div>
+
+<div class="slide">
+<h1 id="the-Perhaps-monad"
+    >The <code
+      >Perhaps</code
+      > monad</h1
+    ><p
+    ><code
+      >Maybe</code
+      > is a monad, so let's make <code
+      >Perhaps</code
+      > into one as well.</p
+    ><p
+    >Some extra interface: <code
+      >perhaps</code
+      > constructs the instances, and <code
+      >never</code
+      > represents values with zero probability.</p
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Keyword"
+	>class</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="Keyword Class"
+	>Monad</span
+	><span class="Normal NormalText"
+	> m =&gt; MonadPerhaps m </span
+	><span class="Keyword"
+	>where</span
+	><br
+	 /><span class="Normal NormalText"
+	>    </span
+	><span class="Function FunctionDefinition"
+	>perhaps ::</span
+	><span class="Normal NormalText"
+	> a -&gt; Prob -&gt; m a</span
+	><br
+	 /><span class="Normal NormalText"
+	>    </span
+	><span class="Function FunctionDefinition"
+	>never ::</span
+	><span class="Normal NormalText"
+	> m a</span
+	><br
+	 /><br
+	 /><span class="Keyword"
+	>instance</span
+	><span class="Normal NormalText"
+	> MonadPerhaps Perhaps </span
+	><span class="Keyword"
+	>where</span
+	><br
+	 /><span class="Normal NormalText"
+	>    perhaps = Perhaps</span
+	><br
+	 /><span class="Normal NormalText"
+	>    never = Perhaps </span
+	><span class="Function"
+	>undefined</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="DecVal Decimal"
+	>0</span
+	><br
+	 /></code
+      ></pre
+    ></div>
+
+<div class="slide">
+<p
+    >Add a handy functor thing for messing with the value inside the <code
+      >Perhaps</code
+      >.</p
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Keyword"
+	>instance</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="Keyword Class"
+	>Functor</span
+	><span class="Normal NormalText"
+	> Perhaps </span
+	><span class="Keyword"
+	>where</span
+	><br
+	 /><span class="Normal NormalText"
+	>    </span
+	><span class="Function"
+	>fmap</span
+	><span class="Normal NormalText"
+	> f (Perhaps x p) = Perhaps (f x) p</span
+	><br
+	 /></code
+      ></pre
+    ><p
+    >And now we can define the actual monad:</p
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Keyword"
+	>instance</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="Keyword Class"
+	>Monad</span
+	><span class="Normal NormalText"
+	> Perhaps </span
+	><span class="Keyword"
+	>where</span
+	><br
+	 /><span class="Normal NormalText"
+	>    </span
+	><span class="Function"
+	>return</span
+	><span class="Normal NormalText"
+	> x = Perhaps x </span
+	><span class="DecVal Decimal"
+	>1</span
+	><br
+	 /><span class="Normal NormalText"
+	>    ph &gt;&gt;= f | neverHappens ph = never</span
+	><br
+	 /><span class="Normal NormalText"
+	>             | </span
+	><span class="Function"
+	>otherwise</span
+	><span class="Normal NormalText"
+	>       = Perhaps x (p1 * p2)</span
+	><br
+	 /><span class="Normal NormalText"
+	>        </span
+	><span class="Keyword"
+	>where</span
+	><span class="Normal NormalText"
+	> (Perhaps (Perhaps x p1) p2) = </span
+	><span class="Function"
+	>fmap</span
+	><span class="Normal NormalText"
+	> f ph</span
+	><br
+	 /></code
+      ></pre
+    ><p
+    >The monad works like the <code
+      >Maybe</code
+      > monad in that the event which never happens causes the rest of the computation to also end up in the never happens value. Otherwise the result of a sequece of <code
+      >Perhaps</code
+      >es has the product of their probabilities as its probability.</p
+    ></div>
+
+<div class="slide">
+<h1 id="monad-transformer-for-Perhaps"
+    >Monad transformer for <code
+      >Perhaps</code
+      ></h1
+    ><p
+    >Pretty much going to assume this works by magic and leave it at that for now.</p
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Normal NormalText"
+	>newtype PerhapsT m a = PerhapsT { </span
+	><span class="Function FunctionDefinition"
+	>runPerhapsT ::</span
+	><span class="Normal NormalText"
+	> m (Perhaps a) }</span
+	><br
+	 /><br
+	 /><span class="Keyword"
+	>instance</span
+	><span class="Normal NormalText"
+	> MonadTrans PerhapsT </span
+	><span class="Keyword"
+	>where</span
+	><br
+	 /><span class="Normal NormalText"
+	>    lift x = PerhapsT (liftM </span
+	><span class="Function"
+	>return</span
+	><span class="Normal NormalText"
+	> x)</span
+	><br
+	 /><br
+	 /><span class="Keyword"
+	>instance</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="Keyword Class"
+	>Monad</span
+	><span class="Normal NormalText"
+	> m =&gt; </span
+	><span class="Keyword Class"
+	>Functor</span
+	><span class="Normal NormalText"
+	> (PerhapsT m) </span
+	><span class="Keyword"
+	>where</span
+	><br
+	 /><span class="Normal NormalText"
+	>    </span
+	><span class="Function"
+	>fmap</span
+	><span class="Normal NormalText"
+	> = liftM</span
+	><br
+	 /><br
+	 /><span class="Keyword"
+	>instance</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="Keyword Class"
+	>Monad</span
+	><span class="Normal NormalText"
+	> m =&gt; </span
+	><span class="Keyword Class"
+	>Monad</span
+	><span class="Normal NormalText"
+	> (PerhapsT m) </span
+	><span class="Keyword"
+	>where</span
+	><br
+	 /><span class="Normal NormalText"
+	>    </span
+	><span class="Function"
+	>return</span
+	><span class="Normal NormalText"
+	> = lift . </span
+	><span class="Function"
+	>return</span
+	><br
+	 /><span class="Normal NormalText"
+	>    m &gt;&gt;= f = PerhapsT bound</span
+	><br
+	 /><span class="Normal NormalText"
+	>        </span
+	><span class="Keyword"
+	>where</span
+	><span class="Normal NormalText"
+	> bound = </span
+	><span class="Keyword"
+	>do</span
+	><br
+	 /><span class="Normal NormalText"
+	>                ph &lt;- runPerhapsT m</span
+	><br
+	 /><span class="Normal NormalText"
+	>                </span
+	><span class="Keyword"
+	>case</span
+	><span class="Normal NormalText"
+	> ph </span
+	><span class="Keyword"
+	>of</span
+	><br
+	 /><span class="Normal NormalText"
+	>                  (Perhaps x1 p1)  | p1 == </span
+	><span class="DecVal Decimal"
+	>0</span
+	><span class="Normal NormalText"
+	>   -&gt; </span
+	><span class="Function"
+	>return</span
+	><span class="Normal NormalText"
+	> never</span
+	><br
+	 /><span class="Normal NormalText"
+	>                                   | </span
+	><span class="Function"
+	>otherwise</span
+	><span class="Normal NormalText"
+	> -&gt; </span
+	><span class="Keyword"
+	>do</span
+	><br
+	 /><span class="Normal NormalText"
+	>                     (Perhaps x2 p2) &lt;- runPerhapsT (f x1)</span
+	><br
+	 /><span class="Normal NormalText"
+	>                     </span
+	><span class="Function"
+	>return</span
+	><span class="Normal NormalText"
+	> (Perhaps x2 (p1 * p2))</span
+	><br
+	 /></code
+      ></pre
+    ></div>
+
+<div class="slide">
+<h1 id="distributions"
+    >Distributions</h1
+    ><p
+    >There might be multiple ways to reperesent a distribution. Let's define a common interface.</p
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Keyword"
+	>type</span
+	><span class="Normal NormalText"
+	> Weight = </span
+	><span class="DataType TypeConstructor"
+	>Rational</span
+	><br
+	 /><br
+	 /><span class="Keyword"
+	>class</span
+	><span class="Normal NormalText"
+	> (</span
+	><span class="Keyword Class"
+	>Functor</span
+	><span class="Normal NormalText"
+	> d, </span
+	><span class="Keyword Class"
+	>Monad</span
+	><span class="Normal NormalText"
+	> d) =&gt; Dist d </span
+	><span class="Keyword"
+	>where</span
+	><br
+	 /><span class="Normal NormalText"
+	>    </span
+	><span class="Function FunctionDefinition"
+	>weighted ::</span
+	><span class="Normal NormalText"
+	> [(a, Weight)] -&gt; d a</span
+	><br
+	 /><br
+	 /><span class="Function FunctionDefinition"
+	>uniform ::</span
+	><span class="Normal NormalText"
+	> Dist d =&gt; [a] -&gt; d a</span
+	><br
+	 /><span class="Normal NormalText"
+	>uniform = weighted . </span
+	><span class="Function"
+	>map</span
+	><span class="Normal NormalText"
+	> (\x -&gt; (x, </span
+	><span class="DecVal Decimal"
+	>1</span
+	><span class="Normal NormalText"
+	>))</span
+	><br
+	 /></code
+      ></pre
+    ><p
+    >Distributions are built with <code
+      >weighted</code
+      >. This takes a sequence of values coupled with relative weights. The distribution is expected to normalize its interior probabilities to sum to 1</p
+    ></div>
+
+<div class="slide">
+<h1 id="finite-distributions"
+    >Finite distributions</h1
+    ><p
+    >A finite distribution is just a bunch of values and accompanying weights. We already got a thing for doing those:</p
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Keyword"
+	>type</span
+	><span class="Normal NormalText"
+	> FDist = PerhapsT ([])</span
+	><br
+	 /><br
+	 /><span class="Keyword"
+	>instance</span
+	><span class="Normal NormalText"
+	> Dist FDist </span
+	><span class="Keyword"
+	>where</span
+	><br
+	 /><span class="Normal NormalText"
+	>    weighted [] = </span
+	><span class="Function"
+	>error</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="String"
+	>&quot;Empty probability distribution.&quot;</span
+	><br
+	 /><span class="Normal NormalText"
+	>    weighted xws = PerhapsT (</span
+	><span class="Function"
+	>map</span
+	><span class="Normal NormalText"
+	> weight xws)</span
+	><br
+	 /><span class="Normal NormalText"
+	>        </span
+	><span class="Keyword"
+	>where</span
+	><span class="Normal NormalText"
+	> weight (x, w) = Perhaps x (Prob (w / totalW))</span
+	><br
+	 /><span class="Normal NormalText"
+	>              totalW = </span
+	><span class="Function"
+	>sum</span
+	><span class="Normal NormalText"
+	> $ </span
+	><span class="Function"
+	>map</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="Function"
+	>snd</span
+	><span class="Normal NormalText"
+	> xws</span
+	><br
+	 /></code
+      ></pre
+    ><p
+    >We also define a helper function to give us the inner list of <code
+      >Perhaps</code
+      > values.</p
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Function FunctionDefinition"
+	>exact ::</span
+	><span class="Normal NormalText"
+	> FDist a -&gt; [Perhaps a]</span
+	><br
+	 /><span class="Normal NormalText"
+	>exact = runPerhapsT</span
+	><br
+	 /></code
+      ></pre
+    ></div>
+
+<div class="slide">
+<h1 id="sampling-distributions"
+    >Sampling distributions</h1
+    ><p
+    >Maybe we want values from a set that's too large to be exhaustively listed, such as all the real numbers between 0 and 1? Finite distributions won't do, but we can take random samples from a function.</p
+    ><p
+    >More about this later. Maybe.</p
+    ></div>
+
+<div class="slide">
+<h1 id="some-utilities"
+    >Some utilities</h1
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Function FunctionDefinition"
+	>value ::</span
+	><span class="Normal NormalText"
+	> Perhaps a -&gt; a</span
+	><br
+	 /><span class="Normal NormalText"
+	>value (Perhaps x _) = x</span
+	><br
+	 /><br
+	 /><span class="Function FunctionDefinition"
+	>prob ::</span
+	><span class="Normal NormalText"
+	> Perhaps a -&gt; Prob</span
+	><br
+	 /><span class="Normal NormalText"
+	>prob (Perhaps _ p) = p</span
+	><br
+	 /></code
+      ></pre
+    ><p
+    >We're going to end up using <code
+      >Maybe</code
+      > to remove some values from a distribution. To help working with there, function <code
+      >onlyJust</code
+      > drops all <code
+      >Nothing</code
+      > values from a distribution and renormalizes it:</p
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Function FunctionDefinition"
+	>catPMaybes ::</span
+	><span class="Normal NormalText"
+	> [Perhaps (</span
+	><span class="DataType TypeConstructor"
+	>Maybe</span
+	><span class="Normal NormalText"
+	> a)] -&gt; [Perhaps a]</span
+	><br
+	 /><span class="Normal NormalText"
+	>catPMaybes = </span
+	><span class="Function"
+	>map</span
+	><span class="Normal NormalText"
+	> (</span
+	><span class="Function"
+	>fmap</span
+	><span class="Normal NormalText"
+	> (fromMaybe </span
+	><span class="Function"
+	>undefined</span
+	><span class="Normal NormalText"
+	>)) . (</span
+	><span class="Function"
+	>filter</span
+	><span class="Normal NormalText"
+	> (isJust . value))</span
+	><br
+	 /><br
+	 /><span class="Function FunctionDefinition"
+	>onlyJust ::</span
+	><span class="Normal NormalText"
+	> FDist (</span
+	><span class="DataType TypeConstructor"
+	>Maybe</span
+	><span class="Normal NormalText"
+	> a) -&gt; FDist a</span
+	><br
+	 /><span class="Normal NormalText"
+	>onlyJust dist</span
+	><br
+	 /><span class="Normal NormalText"
+	>    | total &gt; </span
+	><span class="DecVal Decimal"
+	>0</span
+	><span class="Normal NormalText"
+	> = PerhapsT (</span
+	><span class="Function"
+	>map</span
+	><span class="Normal NormalText"
+	> adjust filtered)</span
+	><br
+	 /><span class="Normal NormalText"
+	>    | </span
+	><span class="Function"
+	>otherwise</span
+	><span class="Normal NormalText"
+	> = PerhapsT []</span
+	><br
+	 /><span class="Normal NormalText"
+	>    </span
+	><span class="Keyword"
+	>where</span
+	><span class="Normal NormalText"
+	> filtered = catPMaybes (runPerhapsT dist)</span
+	><br
+	 /><span class="Normal NormalText"
+	>          total = </span
+	><span class="Function"
+	>sum</span
+	><span class="Normal NormalText"
+	> (</span
+	><span class="Function"
+	>map</span
+	><span class="Normal NormalText"
+	> prob filtered)</span
+	><br
+	 /><span class="Normal NormalText"
+	>          adjust (Perhaps x p) = Perhaps x (p / total)</span
+	><br
+	 /></code
+      ></pre
+    ></div>
+
+<div class="slide">
+<h1 id="example-1-fun-with-permutations"
+    >Example 1: Fun with permutations</h1
+    ><p
+    >Let's take the old puzzle: An acquaintance says &quot;One of my children is a boy.&quot; What's the probability she has two sons?</p
+    ><p
+    >Produce all families with two children with a bit of <code
+      >List</code
+      > monad black magic:</p
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Keyword"
+	>data</span
+	><span class="Normal NormalText"
+	> Child = Boy | Girl</span
+	><br
+	 /><span class="Normal NormalText"
+	>             </span
+	><span class="Keyword"
+	>deriving</span
+	><span class="Normal NormalText"
+	> (</span
+	><span class="Keyword Class"
+	>Show</span
+	><span class="Normal NormalText"
+	>, </span
+	><span class="Keyword Class"
+	>Eq</span
+	><span class="Normal NormalText"
+	>, </span
+	><span class="Keyword Class"
+	>Ord</span
+	><span class="Normal NormalText"
+	>)</span
+	><br
+	 /><br
+	 /><span class="Function FunctionDefinition"
+	>child ::</span
+	><span class="Normal NormalText"
+	> Dist d =&gt; d Child</span
+	><br
+	 /><span class="Normal NormalText"
+	>child = uniform [Boy, Girl]</span
+	><br
+	 /><br
+	 /><span class="Function FunctionDefinition"
+	>family ::</span
+	><span class="Normal NormalText"
+	> Dist d =&gt; d [Child]</span
+	><br
+	 /><span class="Normal NormalText"
+	>family = </span
+	><span class="Keyword"
+	>do</span
+	><br
+	 /><span class="Normal NormalText"
+	>  child1 &lt;- child</span
+	><br
+	 /><span class="Normal NormalText"
+	>  child2 &lt;- child</span
+	><br
+	 /><span class="Normal NormalText"
+	>  </span
+	><span class="Function"
+	>return</span
+	><span class="Normal NormalText"
+	> [child1, child2]</span
+	><br
+	 /></code
+      ></pre
+    ></div>
+
+<div class="slide">
+<p
+    >Now, cull the families with no sons and look up the case with two sons.</p
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Function FunctionDefinition"
+	>sons ::</span
+	><span class="Normal NormalText"
+	> Dist d =&gt; d (</span
+	><span class="DataType TypeConstructor"
+	>Maybe</span
+	><span class="Normal NormalText"
+	> [Child])</span
+	><br
+	 /><span class="Normal NormalText"
+	>sons = </span
+	><span class="Keyword"
+	>do</span
+	><br
+	 /><span class="Normal NormalText"
+	>  kids &lt;- family</span
+	><br
+	 /><span class="Normal NormalText"
+	>  </span
+	><span class="Function"
+	>return</span
+	><span class="Normal NormalText"
+	> $ </span
+	><span class="Keyword"
+	>if</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="Function"
+	>elem</span
+	><span class="Normal NormalText"
+	> Boy kids </span
+	><span class="Keyword"
+	>then</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="Keyword DataConstructor"
+	>Just</span
+	><span class="Normal NormalText"
+	> kids </span
+	><span class="Keyword"
+	>else</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="Keyword DataConstructor"
+	>Nothing</span
+	><br
+	 /></code
+      ></pre
+    ><pre
+    ><code
+      >&gt; exact family
+[Perhaps [Boy,Boy] 25.0 %,
+ Perhaps [Boy,Girl] 25.0 %,
+ Perhaps [Girl,Boy] 25.0 %,
+ Perhaps [Girl,Girl] 25.0 %]
+
+&gt; exact $ onlyJust sons
+[Perhaps [Boy,Boy] 33.3 %,     &lt;---- 33.3 %
+ Perhaps [Boy,Girl] 33.3 %,
+ Perhaps [Girl,Boy] 33.3 %]
+</code
+      ></pre
+    ></div>
+
+<div class="slide">
+<h1 id="example-2-bayesian-reasoning"
+    >Example 2: Bayesian reasoning</h1
+    ><p
+    >A problem where people tend to have poor intuition before applying Bayesian reasoning is trying to detect rare events with a noisy test.</p
+    ><pre
+    ><code
+      >         P(B|A) P(A)
+P(A|B) = -----------
+             P(B)
+</code
+      ></pre
+    ><p
+    >We're going to want probability dyads for this one.</p
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Function FunctionDefinition"
+	>dyad ::</span
+	><span class="Normal NormalText"
+	> (Dist d) =&gt; </span
+	><span class="DataType TypeConstructor"
+	>Rational</span
+	><span class="Normal NormalText"
+	> -&gt; a -&gt; a -&gt; d a</span
+	><br
+	 /><span class="Normal NormalText"
+	>dyad p x1 x2 = weighted [(x1, p), (x2, </span
+	><span class="DecVal Decimal"
+	>1</span
+	><span class="Normal NormalText"
+	> - p)]</span
+	><br
+	 /></code
+      ></pre
+    ></div>
+
+<div class="slide">
+<p
+    >The Voight-Kampff test is used to expose rogue replicants, who are then retired. The test is 99 % accurate.</p
+    ><p
+    >It is estimated that there is one replicant hiding among every 1000 people.</p
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Keyword"
+	>data</span
+	><span class="Normal NormalText"
+	> Test = Pos | Neg</span
+	><br
+	 /><span class="Normal NormalText"
+	>            </span
+	><span class="Keyword"
+	>deriving</span
+	><span class="Normal NormalText"
+	> (</span
+	><span class="Keyword Class"
+	>Show</span
+	><span class="Normal NormalText"
+	>, </span
+	><span class="Keyword Class"
+	>Eq</span
+	><span class="Normal NormalText"
+	>)</span
+	><br
+	 /><br
+	 /><span class="Keyword"
+	>data</span
+	><span class="Normal NormalText"
+	> SubjectStatus = Human | Replicant</span
+	><br
+	 /><span class="Normal NormalText"
+	>                     </span
+	><span class="Keyword"
+	>deriving</span
+	><span class="Normal NormalText"
+	> (</span
+	><span class="Keyword Class"
+	>Show</span
+	><span class="Normal NormalText"
+	>, </span
+	><span class="Keyword Class"
+	>Eq</span
+	><span class="Normal NormalText"
+	>)</span
+	><br
+	 /></code
+      ></pre
+    ></div>
+
+<div class="slide">
+<pre class="sourceCode haskell"
+    ><code
+      ><span class="Function FunctionDefinition"
+	>voightKampff ::</span
+	><span class="Normal NormalText"
+	> Dist d =&gt; d (SubjectStatus, Test)</span
+	><br
+	 /><span class="Normal NormalText"
+	>voightKampff = </span
+	><span class="Keyword"
+	>do</span
+	><br
+	 /><span class="Normal NormalText"
+	>  subjectStatus &lt;- dyad (</span
+	><span class="DecVal Decimal"
+	>1</span
+	><span class="Normal NormalText"
+	> / </span
+	><span class="DecVal Decimal"
+	>1000</span
+	><span class="Normal NormalText"
+	>) Replicant Human</span
+	><br
+	 /><span class="Normal NormalText"
+	>  testResult &lt;-</span
+	><br
+	 /><span class="Normal NormalText"
+	>      </span
+	><span class="Keyword"
+	>if</span
+	><span class="Normal NormalText"
+	> subjectStatus == Replicant</span
+	><br
+	 /><span class="Normal NormalText"
+	>         </span
+	><span class="Keyword"
+	>then</span
+	><span class="Normal NormalText"
+	> dyad </span
+	><span class="Float"
+	>0.99</span
+	><span class="Normal NormalText"
+	> Pos Neg</span
+	><br
+	 /><span class="Normal NormalText"
+	>         </span
+	><span class="Keyword"
+	>else</span
+	><span class="Normal NormalText"
+	> dyad </span
+	><span class="Float"
+	>0.01</span
+	><span class="Normal NormalText"
+	> Pos Neg</span
+	><br
+	 /><span class="Normal NormalText"
+	>  </span
+	><span class="Function"
+	>return</span
+	><span class="Normal NormalText"
+	> (subjectStatus, testResult)</span
+	><br
+	 /></code
+      ></pre
+    ><p
+    >We're only interested in cases which lead to retirement of the subject.</p
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Function FunctionDefinition"
+	>retirementStatistics ::</span
+	><span class="Normal NormalText"
+	> Dist d =&gt; d (</span
+	><span class="DataType TypeConstructor"
+	>Maybe</span
+	><span class="Normal NormalText"
+	> SubjectStatus)</span
+	><br
+	 /><span class="Normal NormalText"
+	>retirementStatistics = </span
+	><span class="Keyword"
+	>do</span
+	><br
+	 /><span class="Normal NormalText"
+	>  (subjectStatus, testResult) &lt;- voightKampff</span
+	><br
+	 /><span class="Normal NormalText"
+	>  </span
+	><span class="Function"
+	>return</span
+	><span class="Normal NormalText"
+	> (</span
+	><span class="Keyword"
+	>if</span
+	><span class="Normal NormalText"
+	> testResult == Pos </span
+	><span class="Keyword"
+	>then</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="Keyword DataConstructor"
+	>Just</span
+	><span class="Normal NormalText"
+	> subjectStatus </span
+	><span class="Keyword"
+	>else</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="Keyword DataConstructor"
+	>Nothing</span
+	><span class="Normal NormalText"
+	>)</span
+	><br
+	 /></code
+      ></pre
+    ></div>
+
+<div class="slide">
+<pre
+    ><code
+      >&gt; exact $ onlyJust retirementStatistics
+[Perhaps Replicant 9.0 %,
+ Perhaps Human 91.0 %]
+</code
+      ></pre
+    ><p
+    >It is estimated that the Weyland-Yutani corporation expends over 10 000 000 nuyen annually on lawsuits resulting from the mistaken retirement of humans.</p
+    ></div>
+
+<div class="slide">
+<h1 id="potential-future-stuff-particle-filters"
+    >Potential future stuff: Particle filters</h1
+    ><p
+    >Also known as sequetial Monte Carlo methods.</p
+    ><p
+    >Intuitive idea: We have a robot in a building. We know the floor plan, but not the location of the robot. Start with a cloud of particles filling the entire floor space, each representing a possible location for the robot.</p
+    ><p
+    >Whenever the robot moves, the entire cloud moves along with it. Any particle that ends up in an inconsistent position like inside a wall, gets replaced with a new, valid particle.</p
+    ><p
+    >As the robot moves around, the cloud converges to the most probable location of the robot.</p
+    ><p
+    >Coming up next, hopefully.</p
+    ></div>
+
+
+<div class="slide">
+<h1 id="technical-stuff"
+    >Technical stuff</h1
+    ><ul
+    ><li
+      ><p
+	>Haskell extensions needed: <code
+	  >GeneralizedNewtypeDeriving</code
+	  > <code
+	  >TypeSynonymInstances</code
+	  ></p
+	></li
+      ><li
+      ><p
+	>Package dependencies: <code
+	  >base</code
+	  >, <code
+	  >haskell98</code
+	  >, <code
+	  >mtl</code
+	  ></p
+	></li
+      ><li
+      ><p
+	>Source code for slides and program in Literate Haskell / Markdown</p
+	></li
+      ><li
+      ><p
+	>HTML document generated using <a href="http://johnmacfarlane.net/pandoc/"
+	  >Pandoc</a
+	  > 1.2 with syntax higlighting extension.</p
+	></li
+      ><li
+      ><p
+	>HTML slide style using <a href="http://www.w3.org/Talks/Tools/Slidy/"
+	  >HTML Slidy</a
+	  ></p
+	></li
+      ></ul
+    ></div>
+
+<div class="slide">
+<h1 id="finally"
+    >Finally</h1
+    ><p
+    >The <code
+      >main</code
+      > function, so we can see if the code actually works as advertised.</p
+    ><pre class="sourceCode haskell"
+    ><code
+      ><span class="Function FunctionDefinition"
+	>main ::</span
+	><span class="Normal NormalText"
+	> </span
+	><span class="DataType TypeConstructor"
+	>IO</span
+	><span class="Normal NormalText"
+	> ()</span
+	><br
+	 /><span class="Normal NormalText"
+	>main = </span
+	><span class="Keyword"
+	>do</span
+	><br
+	 /><span class="Normal NormalText"
+	>  </span
+	><span class="Function"
+	>print</span
+	><span class="Normal NormalText"
+	> $ exact family</span
+	><br
+	 /><span class="Normal NormalText"
+	>  </span
+	><span class="Function"
+	>print</span
+	><span class="Normal NormalText"
+	> $ exact $ onlyJust sons</span
+	><br
+	 /><span class="Normal NormalText"
+	>  </span
+	><span class="Function"
+	>print</span
+	><span class="Normal NormalText"
+	> $ exact $ onlyJust retirementStatistics</span
+	><br
+	 /></code
+      ></pre
+    ></div>
+
+</body
+  ></html
+>
+
