@@ -152,10 +152,40 @@ family2 = do
 
 sons = do
   kids <- family2
-          -- XXX: Wrong...
   return $ if elem Boy kids then Just kids else Nothing
 
+-- Example 2: Let's look at the Bayesian problem of trying to detect rare
+-- events with a slightly noisy test.
+
+-- First a builder for dyad distributions.
+dyad p x1 x2 = weighted [(x1, p), (x2, 1 - p)]
+
+-- The Voight-Kampff test is used to expose rogue replicants, who are then
+-- retired. The test is 99 % accurate.
+
+-- It is estimated that there is one replicant hiding among every 1000 people.
+
+data Test = Pos | Neg
+            deriving (Show, Eq)
+
+data SubjectStatus = Human | Replicant
+                     deriving (Show, Eq)
+
+voightKampff :: Dist d => d (SubjectStatus, Test)
+voightKampff = do
+  subjectStatus <- dyad (1 / 1000) Replicant Human
+  testResult <-
+      if subjectStatus == Replicant
+         then dyad 0.99 Pos Neg
+         else dyad 0.01 Pos Neg
+  return (subjectStatus, testResult)
+
+retirementStatistics :: Dist d => d (Maybe SubjectStatus)
+retirementStatistics = do
+  (subjectStatus, testResult) <- voightKampff
+  return (if testResult == Pos then Just subjectStatus else Nothing)
 
 main :: IO ()
 main = do
   print $ exact $ onlyJust sons
+  print $ exact $ onlyJust retirementStatistics
