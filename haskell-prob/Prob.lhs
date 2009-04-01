@@ -7,11 +7,15 @@ Probabilistic Haskell
 - Use monads for bookkeeping of the computation
 - Build up things from a small toolkit
 
-From Eric Kidd's [Refactoring probability
+Content is based on Eric Kidd's [Refactoring probability
 distributions](http://www.randomhacks.net/articles/2007/02/21/refactoring-probability-distributions)
 series and [Build your own probability
 monads](http://www.randomhacks.net/darcs/probability-monads/probability-monads.pdf)
 paper.
+
+A presentation for the Haskell workshop by the student group
+[Lambda](http://wiki.helsinki.fi/display/lambda/Etusivu), University of
+Helsinki, 2009-04-02
 
 </div>
 
@@ -334,7 +338,7 @@ We're only interested in cases which lead to retirement of the subject.
      Perhaps Human 91.0 %]
 
 It is estimated that the Weyland-Yutani corporation expends over 10 000 000
-nuyen annually on lawsuits resulting from mistaken retirement of humans.
+nuyen annually on lawsuits resulting from the mistaken retirement of humans.
 
 </div>
 
@@ -380,6 +384,11 @@ Technical stuff
 </div>
 
 <div class="slide">
+
+Finally
+=======
+
+The `main` function, so we can see if the code actually works as advertised.
 
 > main :: IO ()
 > main = do
