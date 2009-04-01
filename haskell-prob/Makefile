@@ -24,6 +24,12 @@ $(BINARY): Prob.lhs dist/setup-config
 run: $(BINARY)
 	$(BINARY)
 
+scratch: scratch.hs
+	ghc -XGeneralizedNewtypeDeriving -package mtl -o $@ $<
+
+runscratch: scratch
+	./scratch
+
 clean:
 	runhaskell Setup clean
-#	rm -rf dist
+	rm -f scratch scracth.o scratch.hi
