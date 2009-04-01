@@ -6,7 +6,9 @@
 import Monad
 import Control.Monad.Trans
 
-newtype Prob = Prob Rational
+type Weight = Rational
+
+newtype Prob = Prob Weight
     deriving (Eq, Ord, Num, Fractional)
 
 instance Show Prob where
@@ -73,19 +75,30 @@ instance Monad m => Monad (PerhapsT m) where
                      (Perhaps x2 p2) <- runPerhapsT (f x1)
                      return (Perhaps x2 (p1 * p2))
 
--- Distribution type: Perhaps over a list
+-- Distributions
 
-type Dist = PerhapsT ([])
+-- Common interface for distributions
 
--- Uniform distributions.
+class (Functor d, Monad d) => Dist d where
+    weighted :: [(a, Weight)] -> d a
+
+uniform :: Dist d => [a] -> d a
 uniform = weighted . map (\x -> (x, 1))
 
+-- Finite distributions
+
+type FDist = PerhapsT ([])
+
 -- Weighted distribution, normalizing sum of weights to 1.
-weighted :: [(a, Rational)] -> Dist a
-weighted [] = error "Empty probability distribution."
-weighted xws = PerhapsT (map weight xws)
-    where weight (x, w) = Perhaps x (Prob (w / totalW))
-          totalW = sum $ map snd xws
+instance Dist FDist where
+    weighted [] = error "Empty probability distribution."
+    weighted xws = PerhapsT (map weight xws)
+        where weight (x, w) = Perhaps x (Prob (w / totalW))
+              totalW = sum $ map snd xws
+
+-- What's this?
+exact :: FDist a -> [Perhaps a]
+exact = runPerhapsT
 
 main :: IO ()
 main = do

@@ -25,11 +25,11 @@ run: $(BINARY)
 	$(BINARY)
 
 scratch: scratch.hs
-	ghc -XGeneralizedNewtypeDeriving -package mtl -o $@ $<
+	ghc -XGeneralizedNewtypeDeriving -XTypeSynonymInstances -package mtl -o $@ $<
 
 runscratch: scratch
 	./scratch
 
 clean:
 	runhaskell Setup clean
-	rm -f scratch scracth.o scratch.hi
+	rm -f scratch scratch.o scratch.hi
