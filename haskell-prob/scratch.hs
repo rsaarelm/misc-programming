@@ -114,14 +114,12 @@ exact = runPerhapsT
 value (Perhaps x _) = x
 prob (Perhaps _ p) = p
 
-mapValue f (Perhaps x p) = Perhaps (f x) p
-
 -- We're going to start dropping some elements from a list by using Maybe.
 -- Make a catMaybe-equivalent for Perhaps lists of Maybe values. Drop Nothings
 -- from the list and unMaybe Justs.
 
 catPMaybes :: [Perhaps (Maybe a)] -> [Perhaps a]
-catPMaybes = map (mapValue (fromMaybe undefined)) . (filter (isJust . value))
+catPMaybes = map (fmap (fromMaybe undefined)) . (filter (isJust . value))
 
 -- The same for actual dists, with normalization thrown in.
 
